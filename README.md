@@ -7,7 +7,7 @@ Catálogo digital con carrito de compras, pedidos, comprobante de pago y un pane
 | Área | Funcionalidad |
 | --- | --- |
 | Tienda pública | Catálogo responsive, categorías, precios, stock e imágenes o videos |
-| WhatsApp | Botón público, recepción de mensajes y respuestas desde el panel administrativo |
+| WhatsApp | Botón público para iniciar conversaciones con el negocio |
 | Compras | Carrito, cantidades, datos de entrega, Nequi o Bancolombia |
 | Pedidos | Registro en Google Sheets, descuento automático de stock y consulta por teléfono |
 | Administración | Login privado, productos, medios, pedidos y administradores |
@@ -69,17 +69,9 @@ Pega esa URL en `API_URL` dentro de `index.html` y `admin.html`.
 2. En **Settings → Pages**, selecciona la rama `main` y la carpeta raíz.
 3. Usa la URL pública de `index.html` como tienda.
 
-### 5. Conectar WhatsApp Business
+### 5. Botón de WhatsApp
 
-La bandeja del panel usa WhatsApp Business Cloud API. Necesitas una aplicación en Meta for Developers, una cuenta de WhatsApp Business y un número aprobado para la API.
-
-1. Entra al panel privado como propietario y abre la pestaña **WhatsApp**.
-2. Guarda el **Phone Number ID**, el **Access Token** permanente o de sistema y un **Verify Token** creado por ti. El token de acceso se guarda únicamente en las propiedades privadas de Apps Script.
-3. En Meta configura un webhook con la URL pública de Apps Script terminada en `/exec`.
-4. Usa exactamente el mismo **Verify Token** y suscribe el webhook al campo `messages`.
-5. Envía un mensaje de prueba al número de WhatsApp Business. Debe aparecer en la bandeja; el propietario y los administradores podrán responder desde allí.
-
-La URL del webhook es la misma que `API_URL`. Los clientes deben iniciar la conversación o responder dentro de la ventana permitida por WhatsApp; fuera de esa ventana Meta exige plantillas aprobadas.
+La tienda incluye un botón que abre una conversación con el número definido en `WHATSAPP_NEGOCIO` dentro de `index.html`. El panel administrativo no incluye una bandeja ni configuración de WhatsApp.
 
 ## Carga de imágenes y videos
 
