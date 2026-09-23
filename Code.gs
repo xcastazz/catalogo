@@ -24,15 +24,17 @@ function doPost(e) {
   if (body.accion === 'crearPedido') { try { return crearPedido(ss, body); } catch (err) { return respuesta({ error: err.message || 'No se pudo crear el pedido' }); } }
   const admin = autenticar(body.token);
   if (!admin) return respuesta({ error: 'Sesión expirada' });
-  if (body.accion === 'dashboard') return dashboard(ss);
-  if (body.accion === 'listarProductos') return soloPropietario(admin, () => respuesta({ productos: leerHoja(ss.getSheetByName(HOJA_PRODUCTOS)) }));
+  if (body.accion === 'dashboard') return soloPropietario(admin, () => dashboard(ss));
+  if (body.accion === 'listarProductos') return respuesta({ productos: leerHoja(ss.getSheetByName(HOJA_PRODUCTOS)) });
   if (body.accion === 'listarAdministradores') return soloPropietario(admin, () => respuesta({ administradores: leerHoja(ss.getSheetByName(HOJA_ADMINS)).map(a => ({ usuario: a.usuario, nombre: a.nombre, rol: a.rol, activo: a.activo })) }));
   if (body.accion === 'listarCategorias') return respuesta({ categorias: leerHoja(ss.getSheetByName(HOJA_CATEGORIAS)).map(c => ({ id: c.id, nombre: c.nombre })) });
   if (body.accion === 'agregarAdministrador') return soloPropietario(admin, () => agregarAdministrador(ss, body, admin));
   if (body.accion === 'agregarCategoria') return soloPropietario(admin, () => agregarCategoria(ss, body));
   if (body.accion === 'eliminarCategoria') return soloPropietario(admin, () => { eliminarPorId(ss.getSheetByName(HOJA_CATEGORIAS), body.id); return respuesta({ ok: true }); });
-  if (body.accion === 'agregarProducto') return soloPropietario(admin, () => agregarProducto(ss, body));
-  if (body.accion === 'eliminarProducto') return soloPropietario(admin, () => { eliminarPorId(ss.getSheetByName(HOJA_PRODUCTOS), body.id); return respuesta({ ok: true }); });
+  if (body.accion === 'agregarProducto') return agregarProducto(ss, body, admin);
+  if (body.accion === 'actualizarProducto') return actualizarProducto(ss, body);
+  if (body.accion === 'eliminarProducto') { eliminarPorId(ss.getSheetByName(HOJA_PRODUCTOS), body.id); return respuesta({ ok: true }); }
+  if (body.accion === 'actualizarPedido') return soloPropietario(admin, () => actualizarPedido(ss, body));
   if (body.accion === 'limpiarVentas') return soloPropietario(admin, () => limpiarVentas(ss, admin));
   return respuesta({ error: 'Acción no reconocida' });
 }
@@ -67,7 +69,7 @@ function asegurarHoja(ss, nombre, headers) {
   return sh;
 }
 
-function agregarProducto(ss, body) {
+function agregarProducto(ss, body, admin) {
   let mediaUrl = '', mediaType = '';
   if (body.mediaUrl) {
     if (!/^https:\/\//i.test(String(body.mediaUrl))) throw new Error('La URL multimedia debe comenzar con https://');
@@ -81,6 +83,17 @@ function agregarProducto(ss, body) {
     mediaType = body.media.mimeType || '';
   }
   appendObject(ss.getSheetByName(HOJA_PRODUCTOS), { id: Utilities.getUuid(), nombre: body.nombre, categoria: body.categoria, precio: Number(body.precio), stock: Number(body.stock), descripcion: sanitizarDescripcion(body.descripcion || ''), mediaUrl, mediaType });
+  return respuesta({ ok: true });
+}
+
+function actualizarProducto(ss, body) {
+  const sh = ss.getSheetByName(HOJA_PRODUCTOS), datos = sh.getDataRange().getValues(), headers = datos[0], idCol = headers.indexOf('id');
+  const fila = datos.findIndex((row, index) => index > 0 && row[idCol] === body.id);
+  if (fila < 1) return respuesta({ error: 'Producto no encontrado' });
+  ['nombre','categoria','precio','stock','descripcion','mediaUrl','mediaType'].forEach(campo => {
+    const col = headers.indexOf(campo);
+    if (col >= 0 && body[campo] !== undefined) sh.getRange(fila + 1, col + 1).setValue(campo === 'descripcion' ? sanitizarDescripcion(body[campo]) : body[campo]);
+  });
   return respuesta({ ok: true });
 }
 
