@@ -29,6 +29,7 @@ function doPost(e) {
   if (body.accion === 'agregarProducto') return agregarProducto(ss, body);
   if (body.accion === 'eliminarProducto') { eliminarPorId(ss.getSheetByName(HOJA_PRODUCTOS), body.id); return respuesta({ ok: true }); }
   if (body.accion === 'actualizarPedido') return actualizarPedido(ss, body);
+  if (body.accion === 'limpiarVentas') return limpiarVentas(ss, admin);
   return respuesta({ error: 'Acción no reconocida' });
 }
 
@@ -68,7 +69,14 @@ function agregarProducto(ss, body) {
     mediaUrl = 'https://drive.google.com/uc?export=view&id=' + file.getId();
     mediaType = body.media.mimeType || '';
   }
-  appendObject(ss.getSheetByName(HOJA_PRODUCTOS), { id: Utilities.getUuid(), nombre: body.nombre, categoria: body.categoria, precio: Number(body.precio), stock: Number(body.stock), descripcion: body.descripcion || '', mediaUrl, mediaType });
+  appendObject(ss.getSheetByName(HOJA_PRODUCTOS), { id: Utilities.getUuid(), nombre: body.nombre, categoria: body.categoria, precio: Number(body.precio), stock: Number(body.stock), descripcion: sanitizarDescripcion(body.descripcion || ''), mediaUrl, mediaType });
+  return respuesta({ ok: true });
+}
+
+function limpiarVentas(ss, admin) {
+  if (admin.rol !== 'propietario') return respuesta({ error: 'Solo el propietario puede limpiar las ventas' });
+  const sh = ss.getSheetByName(HOJA_PEDIDOS);
+  if (sh.getLastRow() > 1) sh.deleteRows(2, sh.getLastRow() - 1);
   return respuesta({ ok: true });
 }
 
@@ -118,5 +126,6 @@ function appendObject(sh, obj) { const headers = sh.getRange(1, 1, 1, sh.getLast
 function eliminarPorId(sh, id) { const datos = sh.getDataRange().getValues(), idCol = datos[0].indexOf('id'); for (let i = 1; i < datos.length; i++) if (datos[i][idCol] === id) { sh.deleteRow(i + 1); return; } }
 function soloDigitos(s) { return String(s || '').replace(/\D/g, ''); }
 function hash(value) { const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(value), Utilities.Charset.UTF_8); return bytes.map(b => (b < 0 ? b + 256 : b).toString(16).padStart(2, '0')).join(''); }
+function sanitizarDescripcion(value) { return String(value || '').replace(/<!--[\s\S]*?-->/g, '').replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, '').replace(/<(?!\/?(?:strong|b|em|i|u|s|br|p|ul|ol|li|a)(?:\s[^>]*)?\/?\s*>)[^>]*>/gi, '').replace(/<(strong|b|em|i|u|s|br|p|ul|ol|li)(?:\s[^>]*)?>/gi, '<$1>').replace(/<a\s+[^>]*href=["']([^"']+)["'][^>]*>/gi, function(_, url) { return /^https?:\/\//i.test(url) ? '<a href="' + url.replace(/"/g, '&quot;') + '" target="_blank" rel="noopener">' : ''; }); }
 function leerHoja(sheet) { if (!sheet || sheet.getLastRow() < 2) return []; const datos = sheet.getDataRange().getValues(), headers = datos.shift(); return datos.filter(fila => fila[0] !== '').map(fila => { const obj = {}; headers.forEach((h, i) => obj[h] = fila[i]); return obj; }); }
 function respuesta(obj) { return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON); }
