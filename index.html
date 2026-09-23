@@ -89,6 +89,7 @@ body:after{animation-delay:-9s;transform:rotate(180deg);opacity:.7}@keyframes au
     </div>
   </div>
   <div class="headerbtns">
+    <button class="iconbtn" onclick="abrirWhatsApp()" title="Escribir por WhatsApp">WhatsApp</button>
     <button class="iconbtn" onclick="openDialog('dlgMisPedidos')">Ingresar / rastrear</button>
     <button class="iconbtn" onclick="openCart()">🛒 <span id="cartCount" class="badge" style="display:none">0</span></button>
   </div>
@@ -433,6 +434,10 @@ function enviarPorWhatsapp(){
   const p = ultimoPedido;
   const texto = `Hola MAEVO, acabo de hacer un pedido (#${p.id.slice(0,8)}) por ${cop(p.total)}, pago por ${p.metodoPago}. Adjunto el comprobante.`;
   window.open(`https://wa.me/${WHATSAPP_NEGOCIO}?text=${encodeURIComponent(texto)}`, '_blank');
+}
+
+function abrirWhatsApp(){
+  window.open(`https://wa.me/${WHATSAPP_NEGOCIO.replace(/\D/g,'')}?text=${encodeURIComponent('Hola MAEVO, necesito información sobre sus productos.')}`, '_blank');
 }
 
 function cerrarFacturaYVolver(){ closeDialog('dlgFactura'); }

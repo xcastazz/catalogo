@@ -7,10 +7,17 @@ const HOJA_ADMINS = 'Administradores';
 const HOJA_CATEGORIAS = 'Categorias';
 const HOJA_ETIQUETAS = 'Etiquetas';
 const HOJA_COMPROBANTES = 'Comprobantes';
+const HOJA_WHATSAPP = 'WhatsAppMensajes';
 const CACHE_SESION_SEGUNDOS = 21600;
 const DOMICILIOS = { medellin: 5000, metropolitana: 15000, nacional: 0 };
+const WHATSAPP_API_VERSION = 'v20.0';
 
 function doGet(e) {
+  const parametros = e.parameter || {};
+  const propiedades = PropertiesService.getScriptProperties();
+  if (parametros['hub.mode'] === 'subscribe') {
+    return parametros['hub.verify_token'] === propiedades.getProperty('WHATSAPP_VERIFY_TOKEN') ? ContentService.createTextOutput(parametros['hub.challenge'] || '') : ContentService.createTextOutput('Token inválido').setMimeType(ContentService.MimeType.TEXT);
+  }
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   asegurarHojas(ss);
   const telefono = e.parameter && e.parameter.telefono;
@@ -23,6 +30,10 @@ function doPost(e) {
   const body = JSON.parse(e.postData.contents || '{}');
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   asegurarHojas(ss);
+  if (body.object === 'whatsapp_business_account') {
+    procesarWebhookWhatsApp(ss, body);
+    return respuesta({ ok: true });
+  }
   if (body.accion === 'login') return login(ss, body);
   if (body.accion === 'crearPedido') { try { return crearPedido(ss, body); } catch (err) { return respuesta({ error: err.message || 'No se pudo crear el pedido' }); } }
   const admin = autenticar(body.token);
@@ -34,6 +45,10 @@ function doPost(e) {
   if (body.accion === 'listarAdministradores') return soloPropietario(admin, () => respuesta({ administradores: leerHoja(ss.getSheetByName(HOJA_ADMINS)).map(a => ({ usuario: a.usuario, nombre: a.nombre, rol: a.rol, activo: a.activo })) }));
   if (body.accion === 'listarCategorias') return respuesta({ categorias: leerHoja(ss.getSheetByName(HOJA_CATEGORIAS)).map(c => ({ id: c.id, nombre: c.nombre })) });
   if (body.accion === 'listarEtiquetas') return respuesta({ etiquetas: leerHoja(ss.getSheetByName(HOJA_ETIQUETAS)).map(e => ({ id: e.id, nombre: e.nombre })) });
+  if (body.accion === 'listarWhatsAppMensajes') return respuesta({ mensajes: leerHoja(ss.getSheetByName(HOJA_WHATSAPP)).slice(-300), configurado: whatsappConfigurado() });
+  if (body.accion === 'enviarWhatsApp') return enviarWhatsApp(ss, body);
+  if (body.accion === 'obtenerConfigWhatsApp') return soloPropietario(admin, () => respuesta({ configurado: whatsappConfigurado(), phoneNumberId: PropertiesService.getScriptProperties().getProperty('WHATSAPP_PHONE_NUMBER_ID') || '', verifyToken: PropertiesService.getScriptProperties().getProperty('WHATSAPP_VERIFY_TOKEN') || '', apiVersion: PropertiesService.getScriptProperties().getProperty('WHATSAPP_API_VERSION') || WHATSAPP_API_VERSION, accessTokenConfigurado: Boolean(PropertiesService.getScriptProperties().getProperty('WHATSAPP_ACCESS_TOKEN')) }));
+  if (body.accion === 'guardarConfigWhatsApp') return soloPropietario(admin, () => guardarConfigWhatsApp(body));
   if (body.accion === 'agregarAdministrador') return soloPropietario(admin, () => agregarAdministrador(ss, body, admin));
   if (body.accion === 'agregarCategoria') return soloPropietario(admin, () => agregarCategoria(ss, body));
   if (body.accion === 'eliminarCategoria') return soloPropietario(admin, () => { eliminarPorId(ss.getSheetByName(HOJA_CATEGORIAS), body.id); return respuesta({ ok: true }); });
@@ -66,6 +81,7 @@ function asegurarHojas(ss) {
   asegurarHoja(ss, HOJA_CATEGORIAS, ['id','nombre']);
   asegurarHoja(ss, HOJA_ETIQUETAS, ['id','nombre']);
   asegurarHoja(ss, HOJA_COMPROBANTES, ['id','pedidoId','fecha','documento','cliente','telefono','direccion','ciudad','zonaDomicilio','envioGratis','domicilio','items','subtotal','total','metodoPago','estado']);
+  asegurarHoja(ss, HOJA_WHATSAPP, ['id','fecha','telefono','nombre','direccion','tipo','texto','mensajeId','estado','usuario']);
   if (sh.getLastRow() < 2) sh.appendRow([ADMIN_INICIAL_USUARIO, hash(ADMIN_INICIAL_PASSWORD), 'Propietario', 'propietario', true, new Date()]);
 }
 
@@ -149,6 +165,36 @@ function crearPedido(ss, body) {
 
 function normalizarMedia(value) { const values = Array.isArray(value) ? value : String(value || '').split(/[\n,]+/); return values.map(url => String(url).trim()).filter(url => /^https:\/\//i.test(url)); }
 function normalizarEtiquetas(value) { const values = Array.isArray(value) ? value : String(value || '').split(/[\n,]+/); return values.map(tag => String(tag).trim()).filter(Boolean).slice(0, 12); }
+
+function whatsappConfigurado() { const propiedades = PropertiesService.getScriptProperties(); return Boolean(propiedades.getProperty('WHATSAPP_PHONE_NUMBER_ID') && propiedades.getProperty('WHATSAPP_ACCESS_TOKEN') && propiedades.getProperty('WHATSAPP_VERIFY_TOKEN')); }
+function guardarConfigWhatsApp(body) {
+  const phoneNumberId = String(body.phoneNumberId || '').trim(), accessToken = String(body.accessToken || '').trim(), verifyToken = String(body.verifyToken || '').trim(), apiVersion = String(body.apiVersion || WHATSAPP_API_VERSION).trim();
+  if (!phoneNumberId || !accessToken || !verifyToken) return respuesta({ error: 'Phone Number ID, Access Token y Verify Token son obligatorios' });
+  if (!/^v\d+\.\d+$/.test(apiVersion)) return respuesta({ error: 'La versión de API no es válida' });
+  PropertiesService.getScriptProperties().setProperties({ WHATSAPP_PHONE_NUMBER_ID: phoneNumberId, WHATSAPP_ACCESS_TOKEN: accessToken, WHATSAPP_VERIFY_TOKEN: verifyToken, WHATSAPP_API_VERSION: apiVersion });
+  return respuesta({ ok: true, configurado: true });
+}
+function procesarWebhookWhatsApp(ss, body) {
+  const sh = ss.getSheetByName(HOJA_WHATSAPP), existentes = new Set(leerHoja(sh).map(m => String(m.mensajeId))), entradas = body.entry || [];
+  entradas.forEach(entrada => (entrada.changes || []).forEach(cambio => (cambio.value && cambio.value.messages || []).forEach(mensaje => {
+    if (existentes.has(String(mensaje.id))) return;
+    const contacto = (cambio.value.contacts || []).find(c => c.wa_id === mensaje.from) || {}, texto = mensaje.text && mensaje.text.body || `[${mensaje.type || 'mensaje'}]`;
+    appendObject(sh, { id: Utilities.getUuid(), fecha: new Date(Number(mensaje.timestamp || 0) * 1000 || Date.now()), telefono: mensaje.from, nombre: contacto.profile && contacto.profile.name || mensaje.from, direccion: 'entrante', tipo: mensaje.type || 'text', texto, mensajeId: mensaje.id, estado: 'recibido', usuario: '' });
+    existentes.add(String(mensaje.id));
+  })));
+}
+function enviarWhatsApp(ss, body) {
+  const propiedades = PropertiesService.getScriptProperties(), phoneNumberId = propiedades.getProperty('WHATSAPP_PHONE_NUMBER_ID'), accessToken = propiedades.getProperty('WHATSAPP_ACCESS_TOKEN');
+  if (!phoneNumberId || !accessToken) return respuesta({ error: 'La integración de WhatsApp no está configurada' });
+  const telefono = soloDigitos(body.telefono), texto = String(body.texto || '').trim();
+  if (!telefono || !texto) return respuesta({ error: 'El teléfono y el mensaje son obligatorios' });
+  try {
+    const version = propiedades.getProperty('WHATSAPP_API_VERSION') || WHATSAPP_API_VERSION, response = UrlFetchApp.fetch(`https://graph.facebook.com/${version}/${phoneNumberId}/messages`, { method: 'post', contentType: 'application/json', headers: { Authorization: `Bearer ${accessToken}` }, payload: JSON.stringify({ messaging_product: 'whatsapp', to: telefono, type: 'text', text: { preview_url: false, body: texto } }), muteHttpExceptions: true }), status = response.getResponseCode(), data = JSON.parse(response.getContentText() || '{}');
+    if (status < 200 || status >= 300) return respuesta({ error: data.error && data.error.message || 'WhatsApp rechazó el mensaje' });
+    appendObject(ss.getSheetByName(HOJA_WHATSAPP), { id: Utilities.getUuid(), fecha: new Date(), telefono, nombre: body.nombre || telefono, direccion: 'saliente', tipo: 'text', texto, mensajeId: data.messages && data.messages[0] && data.messages[0].id || '', estado: 'enviado', usuario: body.usuario || '' });
+    return respuesta({ ok: true });
+  } catch (err) { return respuesta({ error: err.message || 'No se pudo enviar el mensaje' }); }
+}
 
 function actualizarPedido(ss, body) { const sh = ss.getSheetByName(HOJA_PEDIDOS), datos = sh.getDataRange().getValues(), estadoCol = datos[0].indexOf('estado'), idCol = datos[0].indexOf('id'); for (let i = 1; i < datos.length; i++) if (datos[i][idCol] === body.id) sh.getRange(i + 1, estadoCol + 1).setValue(body.estado); return respuesta({ ok: true }); }
 
