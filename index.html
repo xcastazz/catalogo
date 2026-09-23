@@ -75,6 +75,7 @@ body{background:radial-gradient(ellipse at 15% 5%,rgba(36,217,255,.22),transpare
 body:before,body:after{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none;background:conic-gradient(from 120deg at 30% 40%,transparent 0 28%,rgba(36,217,255,.07) 34%,transparent 43% 68%,rgba(98,141,255,.06) 75%,transparent 84%);filter:blur(35px);animation:aurora 18s ease-in-out infinite alternate}
 body:after{animation-delay:-9s;transform:rotate(180deg);opacity:.7}@keyframes aurora{from{transform:translate3d(-3%,1%,0) rotate(0deg) scale(1)}to{transform:translate3d(4%,-2%,0) rotate(18deg) scale(1.08)}}
 .more-products{margin-top:8px;color:var(--accent);background:transparent}
+.store-tools{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px}.store-tools input{flex:1;min-width:220px}.tag-filters{display:flex;gap:6px;flex-wrap:wrap}.tag-filters button.active{background:var(--accent);color:var(--accent-text)}.product-tags{display:flex;gap:5px;flex-wrap:wrap}.product-tag{font-size:.68rem;color:var(--accent2);border:1px solid var(--border);border-radius:999px;padding:2px 7px}
 </style>
 </head>
 <body>
@@ -94,6 +95,7 @@ body:after{animation-delay:-9s;transform:rotate(180deg);opacity:.7}@keyframes au
 </header>
 
 <main>
+  <div class="store-tools"><input id="productSearch" type="search" placeholder="Buscar productos..."><div id="tagFilters" class="tag-filters"></div></div>
   <div class="catalog-layout"><nav id="categoryBar" class="categorybar" aria-label="Categorías"></nav><div id="catalog"></div></div>
   <section class="about" id="sobreNosotros"><h2>Sobre MAEVO</h2><p>Conectamos tecnologia, estilo y servicio para que comprar sea sencillo, claro y confiable. Seleccionamos productos con informacion transparente, acompanamos cada pedido y mantenemos una comunicacion directa con nuestros clientes.</p><div class="trustline"><span>Compra acompanada</span><span>Precios claros</span><span>Atencion directa</span></div></section>
 
@@ -101,7 +103,7 @@ body:after{animation-delay:-9s;transform:rotate(180deg);opacity:.7}@keyframes au
 
 <dialog id="dlgSobre"><div class="inner details"><h2>Sobre MAEVO</h2><p class="description">MAEVO nace para acercar soluciones tecnologicas y productos utiles a personas que valoran el buen servicio. Trabajamos con informacion clara, atencion directa y una experiencia de compra sencilla de principio a fin.</p><div class="trustline"><span>Servicio cercano</span><span>Catalogo curado</span><span>Compra clara</span></div><div class="rowbtns"><button class="primary" onclick="closeDialog('dlgSobre')">Explorar catalogo</button></div></div></dialog>
 
-<div id="guide" class="guide" hidden><div class="guide-bubble"><button onclick="cerrarGuia()" aria-label="Cerrar guía">x</button>Hola, soy MAEVO. Explora una categoria o toca el logo para conocernos.</div><div class="guide-avatar" onclick="abrirJuego()" title="Jugar"><video autoplay muted loop playsinline poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='58' height='58'%3E%3Crect width='100%25' height='100%25' fill='%2324d9ff'/%3E%3Ctext x='50%25' y='58%25' text-anchor='middle' font-size='28' font-family='Arial' fill='%2302121d'%3EM%3C/text%3E%3C/svg%3E"><source src="https://cdn-icons-mp4.flaticon.com/512/11184/11184177.mp4" type="video/mp4">M</video></div></div>
+<div id="guide" class="guide" hidden><div class="guide-bubble"><button type="button" onclick="cerrarGuia()" aria-label="Cerrar guía">x</button>Hola, soy MAEVO. Explora una categoria o toca el logo para conocernos.</div><div class="guide-avatar" onclick="abrirJuego()" title="Jugar"><video autoplay muted loop playsinline poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='58' height='58'%3E%3Crect width='100%25' height='100%25' fill='%2324d9ff'/%3E%3Ctext x='50%25' y='58%25' text-anchor='middle' font-size='28' font-family='Arial' fill='%2302121d'%3EM%3C/text%3E%3C/svg%3E"><source src="https://cdn-icons-mp4.flaticon.com/512/11184/11184177.mp4" type="video/mp4">M</video></div></div>
 
 <!-- Carrito -->
 <dialog id="dlgCart">
@@ -202,8 +204,10 @@ const WHATSAPP_NEGOCIO = '+573116390334';
 
 let PRODUCTOS = [];
 let CATEGORIAS = [];
+let ETIQUETAS = [];
 let categoriaActiva = 'Todas';
 let categoriaExpandida = null;
+let etiquetaActiva = 'Todas';
 let CARRITO = JSON.parse(localStorage.getItem('maevo_carrito') || '[]');
 let ultimoPedido = null;
 
@@ -216,6 +220,7 @@ async function cargarProductos(){
     const data = await res.json();
     PRODUCTOS = data.productos || [];
     CATEGORIAS = data.categorias || [...new Set(PRODUCTOS.map(p => p.categoria).filter(Boolean))];
+    ETIQUETAS = data.etiquetas || [];
   }catch(err){
     toast('No se pudo conectar con la hoja. Revisa API_URL.');
     PRODUCTOS = [];
@@ -225,15 +230,17 @@ async function cargarProductos(){
 
 function render(){
   renderCategories();
+  renderTagFilters();
   renderCatalog();
   renderCartBadge();
 }
 
 function renderCatalog(){
   const el = document.getElementById('catalog');
+  const termino = document.getElementById('productSearch')?.value.trim().toLowerCase() || '';
   const categorias = categoriaActiva === 'Todas' ? ['Todas', ...CATEGORIAS] : [categoriaActiva];
   const filas = categorias.map(categoria => {
-    const productos = categoria === 'Todas' ? PRODUCTOS : PRODUCTOS.filter(p => String(p.categoria || '').trim().toLowerCase() === String(categoria).trim().toLowerCase());
+    const productos = (categoria === 'Todas' ? PRODUCTOS : PRODUCTOS.filter(p => String(p.categoria || '').trim().toLowerCase() === String(categoria).trim().toLowerCase())).filter(p => { const texto=[p.nombre,p.descripcion,p.categoria].join(' ').toLowerCase(); let tags=[]; try{tags=JSON.parse(p.etiquetas||'[]')}catch(e){} return (!termino||texto.includes(termino)) && (etiquetaActiva==='Todas'||tags.includes(etiquetaActiva)); });
     if (!productos.length) return '';
     const visible = categoriaExpandida === categoria ? productos : productos.slice(0, 4);
     return `<section class="recommendation"><h2>${categoria === 'Todas' ? 'Recomendados para ti' : esc(categoria)}</h2><div class="recommendation-track">${visible.map(p => tarjetaProducto(p)).join('')}</div>${productos.length > 4 ? `<button class="more-products" onclick="mostrarCategoriaCompleta('${esc(categoria)}')">Ver más productos (${productos.length - 4})</button>` : ''}</section>`;
@@ -247,6 +254,7 @@ function tarjetaProducto(p){ return `
       ${renderMedia(p)}
       ${p.categoria ? `<div class="cat">${esc(p.categoria)}</div>` : ''}
       <h3>${esc(p.nombre)}</h3>
+      <div class="product-tags">${etiquetasProducto(p).map(tag=>`<span class="product-tag">${esc(tag)}</span>`).join('')}</div>
       ${p.descripcion ? `<div class="description card-description">${sanitizarDescripcion(p.descripcion)}</div>` : ''}
       <div class="precio">${cop(p.precio)}</div>
       <div class="badgechip ${p.stock>0?'ok':'no'}">${p.stock>0 ? p.stock+' disponibles' : 'Agotado'}</div>
@@ -258,7 +266,9 @@ function renderCategories(){
   const el=document.getElementById('categoryBar');
   el.innerHTML=['Todas',...CATEGORIAS].map(c=>`<button class="${c===categoriaActiva?'active':''}" onclick="filtrarCategoria('${esc(c)}')">${esc(c)}</button>`).join('');
 }
+function renderTagFilters(){const el=document.getElementById('tagFilters');el.innerHTML=['Todas',...ETIQUETAS.map(e=>typeof e==='string'?e:e.nombre)].map(tag=>`<button class="${tag===etiquetaActiva?'active':''}" onclick="filtrarEtiqueta('${esc(tag)}')">${esc(tag)}</button>`).join('')}
 function filtrarCategoria(categoria){categoriaActiva=categoria;render()}
+function filtrarEtiqueta(etiqueta){etiquetaActiva=etiqueta;render()}
 function mostrarCategoriaCompleta(categoria){categoriaExpandida=categoria;renderCatalog();document.getElementById('catalog').scrollIntoView({behavior:'smooth',block:'start'})}
 function verProducto(id){
   const p=PRODUCTOS.find(x=>x.id===id);if(!p)return;
@@ -274,6 +284,7 @@ function renderMedia(producto){
   if(!urls.length)return '';
   return `<div class="media-gallery">${urls.map(url=>String(producto.mediaType).toLowerCase().indexOf('video')===0?`<video class="media" src="${esc(url)}" controls preload="metadata"></video>`:`<img class="media" src="${esc(url)}" alt="${esc(producto.nombre)}" loading="lazy">`).join('')}</div>`;
 }
+function etiquetasProducto(producto){try{return JSON.parse(producto.etiquetas||'[]')}catch(err){return []}}
 
 function sanitizarDescripcion(value){
   const template=document.createElement('template');
@@ -401,7 +412,7 @@ function mostrarFactura(pedido){
     <table>${pedido.items.map(i=>`<tr><td>${i.cantidad} x ${esc(i.producto)}</td><td style="text-align:right">${cop(i.precioUnitario*i.cantidad)}</td></tr>`).join('')}</table>
     <div class="cartrow"><span>Subtotal</span><span>${cop(pedido.subtotal)}</span></div><div class="cartrow"><span>Domicilio</span><span class="${pedido.envioGratis?'free-shipping':''}">${pedido.envioGratis ? 'GRATIS' : (pedido.domicilio ? cop(pedido.domicilio) : 'Por confirmar')}</span></div><div class="totalline"><span>Total</span><span>${cop(pedido.total)}</span></div>
     <div class="instructions">
-      📸 Toma una captura de pantalla de este comprobante y envíala al WhatsApp <strong>3116390334</strong> para continuar con tu pago por <strong>${esc(pedido.metodoPago)}</strong> a ${esc(cuenta)}.
+      Comunícate al WhatsApp <strong>3116390334</strong> para confirmar tu pago por <strong>${esc(pedido.metodoPago)}</strong> a ${esc(cuenta)}.
     </div>
   `;
   openDialog('dlgFactura');
@@ -473,6 +484,7 @@ function moverObjetivo(){const area=document.getElementById('gameArea'),target=d
 function sumarPunto(){const tiempo=Number(document.getElementById('gameTime').textContent);if(tiempo<=0)return;const puntos=Number(document.getElementById('gameScore').textContent)+1;document.getElementById('gameScore').textContent=puntos;if(puntos>30&&!localStorage.getItem('maevo_envio_gratis')){localStorage.setItem('maevo_envio_gratis','1');toast('¡Premio desbloqueado: envío gratis!')}moverObjetivo()}
 
 cargarProductos();
+document.getElementById('productSearch')?.addEventListener('input', render);
 setTimeout(mostrarGuia,900);
 document.addEventListener('pointermove', event=>{document.documentElement.style.setProperty('--mx',`${event.clientX/12}px`);document.documentElement.style.setProperty('--my',`${event.clientY/12}px`)});
 </script>
