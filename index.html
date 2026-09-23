@@ -11,7 +11,7 @@
     --accent-text:#02121d;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:radial-gradient(circle at 85% -10%,rgba(36,217,255,.18),transparent 34%),radial-gradient(circle at 0 30%,rgba(98,141,255,.12),transparent 30%),var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  body{margin:0;background:linear-gradient(rgba(36,217,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(36,217,255,.035) 1px,transparent 1px),radial-gradient(circle at 85% -10%,rgba(36,217,255,.18),transparent 34%),radial-gradient(circle at 0 30%,rgba(98,141,255,.12),transparent 30%),var(--bg);background-size:42px 42px,42px 42px,auto,auto,auto;background-position:var(--mx,50%) var(--my,0),var(--mx,50%) var(--my,0),center,center,center;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
   a{color:var(--accent)}
   header{position:sticky;top:0;z-index:20;background:rgba(2,8,23,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);box-shadow:0 8px 30px rgba(0,0,0,.24);
     display:flex;align-items:center;justify-content:space-between;padding:10px 16px;gap:10px}
@@ -65,6 +65,8 @@
   .card{box-shadow:0 12px 30px rgba(0,0,0,.18);transition:transform .2s,border-color .2s,box-shadow .2s}.card:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 0 24px rgba(36,217,255,.16)}.description{color:var(--muted);font-size:.85rem;line-height:1.5}.description a{color:var(--accent)}
   .categorybar{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 18px}.categorybar button.active{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}.card{animation:rise .45s both}.card:nth-child(2){animation-delay:.05s}.card:nth-child(3){animation-delay:.1s}.card:nth-child(4){animation-delay:.15s}.details{max-width:620px}.details .media{width:100%;max-height:360px;object-fit:contain;border-radius:12px;background:var(--bg)}.delivery{border:1px solid var(--border);border-radius:10px;padding:10px}.delivery label{flex-direction:row;align-items:center;color:var(--text);font-size:.85rem}.delivery small{display:block;color:var(--muted);margin-top:4px}@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
   body{animation:pageIn .55s ease-out}button,.iconbtn{transition:transform .2s,box-shadow .2s,border-color .2s}button:hover,.iconbtn:hover{transform:translateY(-2px);box-shadow:0 0 18px rgba(36,217,255,.16)}dialog[open]{animation:dialogIn .25s ease-out}header{animation:headerIn .5s ease-out}@keyframes pageIn{from{opacity:0}to{opacity:1}}@keyframes dialogIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes headerIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}@media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+  .about{margin:54px 0 0;padding:30px;border:1px solid var(--border);border-radius:18px;background:linear-gradient(135deg,rgba(8,20,42,.94),rgba(13,32,64,.7));box-shadow:0 16px 50px rgba(0,0,0,.2);animation:rise .7s .2s both}.about h2{margin:0 0 8px}.about p{max-width:680px;color:var(--muted);line-height:1.7}.trustline{display:flex;gap:10px;flex-wrap:wrap}.trustline span{padding:8px 12px;border:1px solid var(--border);border-radius:999px;color:var(--accent2);font-size:.78rem}
+  body{animation:pageIn .55s ease-out}button,.iconbtn{transition:transform .2s,box-shadow .2s,border-color .2s}button:hover,.iconbtn:hover{transform:translateY(-2px);box-shadow:0 0 18px rgba(36,217,255,.16)}dialog[open]{animation:dialogIn .25s ease-out}header{animation:headerIn .5s ease-out}@keyframes pageIn{from{opacity:0}to{opacity:1}}@keyframes dialogIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes headerIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}@media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 </head>
 <body>
@@ -86,6 +88,7 @@
 <main>
   <nav id="categoryBar" class="categorybar" aria-label="Categorías"></nav>
   <div id="catalog" class="grid"></div>
+  <section class="about" id="sobreNosotros"><h2>Sobre MAEVO</h2><p>Conectamos tecnologia, estilo y servicio para que comprar sea sencillo, claro y confiable. Seleccionamos productos con informacion transparente, acompanamos cada pedido y mantenemos una comunicacion directa con nuestros clientes.</p><div class="trustline"><span>Compra acompanada</span><span>Precios claros</span><span>Atencion directa</span></div></section>
 
 </main>
 
@@ -412,6 +415,7 @@ function toast(msg){
 }
 
 cargarProductos();
+document.addEventListener('pointermove', event=>{document.documentElement.style.setProperty('--mx',`${event.clientX/12}px`);document.documentElement.style.setProperty('--my',`${event.clientY/12}px`)});
 </script>
 </body>
 </html>
