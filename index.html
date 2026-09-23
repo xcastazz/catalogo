@@ -218,7 +218,7 @@ function renderCatalog(){
   const el = document.getElementById('catalog');
   const categorias = categoriaActiva === 'Todas' ? ['Todas', ...CATEGORIAS] : [categoriaActiva];
   const filas = categorias.map(categoria => {
-    const productos = categoria === 'Todas' ? PRODUCTOS : PRODUCTOS.filter(p => p.categoria === categoria);
+    const productos = categoria === 'Todas' ? PRODUCTOS : PRODUCTOS.filter(p => String(p.categoria || '').trim().toLowerCase() === String(categoria).trim().toLowerCase());
     if (!productos.length) return '';
     return `<section class="recommendation"><h2>${categoria === 'Todas' ? 'Recomendados para ti' : esc(categoria)}</h2><div class="recommendation-track">${productos.map(p => tarjetaProducto(p)).join('')}</div></section>`;
   }).join('');
