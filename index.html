@@ -25,7 +25,7 @@
   .headerbtns{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .headerbtns{justify-self:end}
   .iconbtn{position:relative;background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:8px 10px;cursor:pointer;font-size:.85rem}
-  .themebtn{color:var(--accent);font-weight:700}
+  .themebtn{color:var(--accent);font-weight:700}.whatsapp-icon{width:18px;height:18px;display:block;fill:currentColor}
   .badge{position:absolute;top:-6px;right:-6px;background:var(--accent);color:var(--accent-text);border-radius:999px;font-size:.68rem;padding:1px 6px;font-weight:700}
   main{max-width:1180px;margin:0 auto;padding:18px 16px 60px}.catalog-layout{display:grid;grid-template-columns:170px minmax(0,1fr);gap:22px;align-items:start}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
@@ -96,7 +96,7 @@ body:after{animation-delay:-9s;transform:rotate(180deg);opacity:.7}@keyframes au
   <div class="home-indicator" aria-current="page">Inicio</div>
   <div class="headerbtns">
     <button class="iconbtn themebtn" id="themeToggle" onclick="toggleTheme()" type="button" title="Cambiar tema">Tema claro</button>
-    <button class="iconbtn" onclick="abrirWhatsApp()" title="Escribir por WhatsApp" aria-label="Escribir por WhatsApp">💬</button>
+    <button class="iconbtn" onclick="abrirWhatsApp()" title="Escribir por WhatsApp" aria-label="Escribir por WhatsApp"><svg class="whatsapp-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 3.5A11.8 11.8 0 0 0 12.1 0C5.6 0 .3 5.3.3 11.8c0 2.1.6 4.1 1.6 5.8L.2 24l6.5-1.7a11.8 11.8 0 0 0 5.4 1.3h.1c6.5 0 11.8-5.3 11.8-11.8 0-3.2-1.2-6.1-3.5-8.3ZM12.2 21.6h-.1c-1.7 0-3.4-.5-4.8-1.3l-.3-.2-3.8 1 1-3.7-.2-.3a9.8 9.8 0 0 1-1.5-5.2C2.5 6.5 6.9 2.2 12.2 2.2c2.6 0 5.1 1 6.9 2.9a9.7 9.7 0 0 1 2.9 6.9c0 5.3-4.4 9.6-9.8 9.6Zm5.3-7.2c-.3-.2-1.8-.9-2.1-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-1 1.2-.2.2-.4.2-.7.1-.3-.2-1.3-.5-2.5-1.6-.9-.8-1.6-1.8-1.8-2.1-.2-.3 0-.5.1-.7l.5-.6c.2-.2.2-.4.3-.6.1-.2 0-.5 0-.6-.1-.2-.7-1.7-.9-2.3-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.6.1-.9.4-.3.3-1.1 1-1.1 2.5s1.1 2.9 1.2 3.1c.2.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4 0-.2-.2-.3-.5-.4Z"/></svg></button>
     <button class="iconbtn" onclick="openDialog('dlgMisPedidos')">Ingresar / rastrear</button>
     <button class="iconbtn" onclick="openCart()">🛒 <span id="cartCount" class="badge" style="display:none">0</span></button>
   </div>
@@ -484,8 +484,8 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'), 2600);
 }
 
-function cerrarGuia(){document.getElementById('guide').hidden=true;localStorage.setItem('maevo_guia_vista','1')}
-function mostrarGuia(){if(!localStorage.getItem('maevo_guia_vista'))document.getElementById('guide').hidden=false}
+function cerrarGuia(){const guia=document.getElementById('guide');guia.hidden=true;guia.setAttribute('aria-hidden','true');localStorage.setItem('maevo_guia_vista','1')}
+function mostrarGuia(){const guia=document.getElementById('guide');if(!localStorage.getItem('maevo_guia_vista')){guia.hidden=false;guia.removeAttribute('aria-hidden')}}
 let juegoInterval=null;
 function abrirJuego(){openDialog('dlgJuego');iniciarJuego()}
 function cerrarJuego(){clearInterval(juegoInterval);closeDialog('dlgJuego')}
