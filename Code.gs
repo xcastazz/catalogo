@@ -53,7 +53,7 @@ function autenticar(token) { if (!token) return null; const raw = CacheService.g
 
 function asegurarHojas(ss) {
   asegurarHoja(ss, HOJA_PRODUCTOS, ['id','nombre','categoria','precio','stock','descripcion','mediaUrl','mediaType']);
-  asegurarHoja(ss, HOJA_PEDIDOS, ['id','fecha','cliente','telefono','direccion','ciudad','notas','metodoPago','zonaDomicilio','domicilio','items','subtotal','total','estado']);
+  asegurarHoja(ss, HOJA_PEDIDOS, ['id','fecha','cliente','telefono','direccion','ciudad','notas','metodoPago','zonaDomicilio','envioGratis','domicilio','items','subtotal','total','estado']);
   const sh = asegurarHoja(ss, HOJA_ADMINS, ['usuario','passwordHash','nombre','rol','activo','creado']);
   asegurarHoja(ss, HOJA_CATEGORIAS, ['id','nombre']);
   if (sh.getLastRow() < 2) sh.appendRow([ADMIN_INICIAL_USUARIO, hash(ADMIN_INICIAL_PASSWORD), 'Propietario', 'propietario', true, new Date()]);
@@ -124,10 +124,10 @@ function crearPedido(ss, body) {
     if (cantidad > Number(fila[stockCol])) throw new Error('Stock insuficiente para ' + fila[nombreCol]);
     return { productoId: fila[idCol], producto: fila[nombreCol], cantidad, precioUnitario: Number(fila[precioCol]) };
   });
-  const subtotal = items.reduce((s, it) => s + it.precioUnitario * it.cantidad, 0), zonaDomicilio = String(body.zonaDomicilio || 'nacional'), domicilio = DOMICILIOS[zonaDomicilio] === undefined ? 0 : DOMICILIOS[zonaDomicilio], total = subtotal + domicilio, id = Utilities.getUuid();
-  appendObject(ss.getSheetByName(HOJA_PEDIDOS), { id, fecha: new Date(), cliente: body.cliente, telefono: body.telefono, direccion: body.direccion, ciudad: body.ciudad, notas: body.notas || '', metodoPago: body.metodoPago, zonaDomicilio, domicilio, items: JSON.stringify(items), subtotal, total, estado: 'Pendiente' });
+  const subtotal = items.reduce((s, it) => s + it.precioUnitario * it.cantidad, 0), zonaDomicilio = String(body.zonaDomicilio || 'nacional'), envioGratis = String(body.envioGratis) === 'true', domicilioBase = DOMICILIOS[zonaDomicilio] === undefined ? 0 : DOMICILIOS[zonaDomicilio], domicilio = envioGratis ? 0 : domicilioBase, total = subtotal + domicilio, id = Utilities.getUuid();
+  appendObject(ss.getSheetByName(HOJA_PEDIDOS), { id, fecha: new Date(), cliente: body.cliente, telefono: body.telefono, direccion: body.direccion, ciudad: body.ciudad, notas: body.notas || '', metodoPago: body.metodoPago, zonaDomicilio, envioGratis, domicilio, items: JSON.stringify(items), subtotal, total, estado: 'Pendiente' });
   items.forEach(item => { for (let i = 1; i < datos.length; i++) if (datos[i][idCol] === item.productoId) { sh.getRange(i + 1, stockCol + 1).setValue(Math.max(0, Number(datos[i][stockCol]) - item.cantidad)); break; } });
-  return respuesta({ ok: true, id, subtotal, domicilio, total, zonaDomicilio });
+  return respuesta({ ok: true, id, subtotal, domicilio, total, zonaDomicilio, envioGratis });
 }
 
 function actualizarPedido(ss, body) { const sh = ss.getSheetByName(HOJA_PEDIDOS), datos = sh.getDataRange().getValues(), estadoCol = datos[0].indexOf('estado'), idCol = datos[0].indexOf('id'); for (let i = 1; i < datos.length; i++) if (datos[i][idCol] === body.id) sh.getRange(i + 1, estadoCol + 1).setValue(body.estado); return respuesta({ ok: true }); }
