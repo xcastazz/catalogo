@@ -69,6 +69,7 @@
   @media (max-width:700px){.catalog-layout{display:block}.categorybar{position:static;display:flex;flex-direction:column;margin-bottom:18px}.categorybar button{text-align:left}.recommendation-track .card{min-width:190px;width:190px}}
   body{animation:pageIn .55s ease-out}button,.iconbtn{transition:transform .2s,box-shadow .2s,border-color .2s}button:hover,.iconbtn:hover{transform:translateY(-2px);box-shadow:0 0 18px rgba(36,217,255,.16)}dialog[open]{animation:dialogIn .25s ease-out}header{animation:headerIn .5s ease-out}@keyframes pageIn{from{opacity:0}to{opacity:1}}@keyframes dialogIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes headerIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}@media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
+<style>.media-gallery{display:flex;gap:6px;overflow-x:auto}.media-gallery .media{min-width:100%;flex:0 0 100%}</style>
 </head>
 <body>
 
@@ -119,6 +120,7 @@
   <form class="inner" onsubmit="return irAResumen(event)">
     <h3>Datos de tu pedido</h3>
     <label>Nombre completo<input required name="cliente" id="ck_cliente"></label>
+    <label>Documento de identidad<input required name="documento" id="ck_documento" placeholder="Cédula o documento"></label>
     <label>Teléfono (WhatsApp)<input required name="telefono" id="ck_telefono" placeholder="Ej. 3001234567"></label>
     <label>Dirección<input required name="direccion" id="ck_direccion"></label>
     <label>Ciudad<input required name="ciudad" id="ck_ciudad"></label>
@@ -169,6 +171,9 @@
     <p class="description">Ingresa el teléfono usado en tu pedido para ver su estado en tiempo real.</p>
     <label>Número de teléfono
       <input id="miTelefono" placeholder="Ej. 3001234567">
+    </label>
+    <label>Documento de identidad
+      <input id="miDocumento" placeholder="Cédula o documento">
     </label>
     <div class="rowbtns">
       <button class="ghost" onclick="closeDialog('dlgMisPedidos')">Cerrar</button>
@@ -231,7 +236,7 @@ function renderCatalog(){
 function tarjetaProducto(p){ return `
     <div class="card ${p.stock>0?'':'soldout'}" onclick="verProducto('${esc(p.id)}')">
       ${p.stock>0?'':'<div class="soldout-ribbon">AGOTADO · AGOTADO</div>'}
-      ${p.mediaUrl ? (String(p.mediaType).toLowerCase().indexOf('video') === 0 ? `<video class="media" src="${esc(p.mediaUrl)}" controls preload="metadata"></video>` : `<img class="media" src="${esc(p.mediaUrl)}" alt="${esc(p.nombre)}" loading="lazy">`) : ''}
+      ${renderMedia(p)}
       ${p.categoria ? `<div class="cat">${esc(p.categoria)}</div>` : ''}
       <h3>${esc(p.nombre)}</h3>
       ${p.descripcion ? `<div class="description">${sanitizarDescripcion(p.descripcion)}</div>` : ''}
@@ -248,9 +253,17 @@ function renderCategories(){
 function filtrarCategoria(categoria){categoriaActiva=categoria;render()}
 function verProducto(id){
   const p=PRODUCTOS.find(x=>x.id===id);if(!p)return;
-  const media=p.mediaUrl?(String(p.mediaType).toLowerCase().indexOf('video')===0?`<video class="media" src="${esc(p.mediaUrl)}" controls></video>`:`<img class="media" src="${esc(p.mediaUrl)}" alt="${esc(p.nombre)}">`):'';
+  const media=renderMedia(p);
   document.getElementById('productoDetalle').innerHTML=`${media}<div class="cat">${esc(p.categoria||'Producto')}</div><h2>${esc(p.nombre)}</h2><div class="description">${sanitizarDescripcion(p.descripcion||'Sin descripción disponible.')}</div><p class="precio">${cop(p.precio)}</p><div class="badgechip ${p.stock>0?'ok':'no'}">${p.stock>0?p.stock+' disponibles':'Agotado'}</div><button class="primary" ${p.stock>0?'':'disabled'} onclick="agregarAlCarrito('${esc(p.id)}');closeDialog('dlgProducto')">Agregar al carrito</button>`;
   openDialog('dlgProducto');
+}
+
+function renderMedia(producto){
+  let urls=[];
+  try{urls=Array.isArray(producto.mediaUrls)?producto.mediaUrls:JSON.parse(producto.mediaUrls||'[]')}catch(err){urls=[]}
+  if(!urls.length&&producto.mediaUrl)urls=[producto.mediaUrl];
+  if(!urls.length)return '';
+  return `<div class="media-gallery">${urls.map(url=>String(producto.mediaType).toLowerCase().indexOf('video')===0?`<video class="media" src="${esc(url)}" controls preload="metadata"></video>`:`<img class="media" src="${esc(url)}" alt="${esc(producto.nombre)}" loading="lazy">`).join('')}</div>`;
 }
 
 function sanitizarDescripcion(value){
@@ -326,6 +339,7 @@ function irAResumen(e){
   const f = new FormData(e.target);
   const datos = {
     cliente: f.get('cliente').trim(),
+    documento: f.get('documento').trim(),
     telefono: f.get('telefono').trim(),
     direccion: f.get('direccion').trim(),
     ciudad: f.get('ciudad').trim(),
@@ -339,7 +353,7 @@ function irAResumen(e){
   const domicilio = datos.zonaDomicilio === 'medellin' ? 5000 : datos.zonaDomicilio === 'metropolitana' ? 15000 : 0;
   const cuenta = datos.metodoPago === 'Nequi' ? CUENTA_NEQUI : CUENTA_BANCOLOMBIA;
   document.getElementById('resumenContenido').innerHTML = `
-    <p><strong>${esc(datos.cliente)}</strong><br>${esc(datos.telefono)}<br>${esc(datos.direccion)}, ${esc(datos.ciudad)}</p>
+    <p><strong>${esc(datos.cliente)}</strong><br>Documento: ${esc(datos.documento)}<br>${esc(datos.telefono)}<br>${esc(datos.direccion)}, ${esc(datos.ciudad)}</p>
     ${CARRITO.map(i=>`<div class="cartrow"><span>${i.cantidad} x ${esc(i.producto)}</span><span>${cop(i.precio*i.cantidad)}</span></div>`).join('')}
     <div class="cartrow"><span>Domicilio</span><span class="${window._envioGratis?'free-shipping':''}">${window._envioGratis ? 'GRATIS' : (domicilio ? cop(domicilio) : 'Por confirmar')}</span></div><div class="totalline"><span>Total estimado</span><span>${cop(totalCarrito()+(window._envioGratis?0:domicilio))}</span></div>
     <p class="muted" style="color:var(--muted);font-size:.82rem">Pago por <strong>${esc(datos.metodoPago)}</strong> a: ${esc(cuenta)}</p>
@@ -374,7 +388,7 @@ function mostrarFactura(pedido){
   document.getElementById('invoice').innerHTML = `
     <h2>MAEVO — Comprobante</h2>
     <div class="muted">Pedido #${esc(pedido.id).slice(0,8)} · ${new Date(pedido.fecha).toLocaleString('es-CO')}</div>
-    <p><strong>${esc(pedido.cliente)}</strong><br>${esc(pedido.telefono)}<br>${esc(pedido.direccion)}, ${esc(pedido.ciudad)}</p>
+    <p><strong>${esc(pedido.cliente)}</strong><br>Documento: ${esc(pedido.documento)}<br>${esc(pedido.telefono)}<br>${esc(pedido.direccion)}, ${esc(pedido.ciudad)}</p>
     <table>${pedido.items.map(i=>`<tr><td>${i.cantidad} x ${esc(i.producto)}</td><td style="text-align:right">${cop(i.precioUnitario*i.cantidad)}</td></tr>`).join('')}</table>
     <div class="cartrow"><span>Subtotal</span><span>${cop(pedido.subtotal)}</span></div><div class="cartrow"><span>Domicilio</span><span class="${pedido.envioGratis?'free-shipping':''}">${pedido.envioGratis ? 'GRATIS' : (pedido.domicilio ? cop(pedido.domicilio) : 'Por confirmar')}</span></div><div class="totalline"><span>Total</span><span>${cop(pedido.total)}</span></div>
     <div class="instructions">
@@ -409,7 +423,9 @@ async function buscarMisPedidos(){
   if (!tel){ toast('Escribe tu número de teléfono'); return; }
   el.innerHTML = 'Buscando...';
   try{
-    const res = await fetch(`${API_URL}?telefono=${encodeURIComponent(tel)}`);
+    const documento = document.getElementById('miDocumento').value.trim();
+    if (!documento){ toast('Escribe también tu documento'); return; }
+    const res = await fetch(`${API_URL}?telefono=${encodeURIComponent(tel)}&documento=${encodeURIComponent(documento)}`);
     const data = await res.json();
     const pedidos = data.pedidos || [];
     el.innerHTML = pedidos.length ? pedidos.map(p => `
