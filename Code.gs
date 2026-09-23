@@ -81,7 +81,7 @@ function asegurarHojas(ss) {
   const sh = asegurarHoja(ss, HOJA_ADMINS, ['usuario','passwordHash','nombre','rol','activo','creado']);
   asegurarHoja(ss, HOJA_CATEGORIAS, ['id','nombre']);
   asegurarHoja(ss, HOJA_ETIQUETAS, ['id','nombre']);
-  asegurarHoja(ss, HOJA_COMPROBANTES, ['id','pedidoId','fecha','documento','cliente','telefono','direccion','ciudad','zonaDomicilio','envioGratis','domicilio','items','subtotal','total','metodoPago','estado']);
+  asegurarHoja(ss, HOJA_COMPROBANTES, ['id','pedidoId','fecha','documento','cliente','telefono','direccion','ciudad','notas','zonaDomicilio','envioGratis','domicilio','items','subtotal','total','metodoPago','estado','validadoPor','validadoFecha','motivoRechazo']);
   asegurarHoja(ss, HOJA_WHATSAPP, ['id','fecha','telefono','nombre','direccion','tipo','texto','mensajeId','estado','usuario']);
   if (sh.getLastRow() < 2) sh.appendRow([ADMIN_INICIAL_USUARIO, hash(ADMIN_INICIAL_PASSWORD), 'Propietario', 'propietario', true, new Date()]);
 }
@@ -154,12 +154,12 @@ function crearPedido(ss, body) {
     if (!fila) throw new Error('Producto no disponible: ' + item.productoId);
     const cantidad = Math.max(1, Math.floor(Number(item.cantidad)));
     if (cantidad > Number(fila[stockCol])) throw new Error('Stock insuficiente para ' + fila[nombreCol]);
-    return { productoId: fila[idCol], producto: fila[nombreCol], cantidad, precioUnitario: Number(fila[precioCol]) };
+    return { productoId: fila[idCol], producto: fila[nombreCol], cantidad, precioUnitario: Number(fila[precioCol]), mediaUrl: fila[headers.indexOf('mediaUrl')] || '', mediaType: fila[headers.indexOf('mediaType')] || 'image/*' };
   });
   const subtotal = items.reduce((s, it) => s + it.precioUnitario * it.cantidad, 0), zonaDomicilio = String(body.zonaDomicilio || 'nacional'), envioGratis = String(body.envioGratis) === 'true', domicilioBase = DOMICILIOS[zonaDomicilio] === undefined ? 0 : DOMICILIOS[zonaDomicilio], domicilio = envioGratis ? 0 : domicilioBase, total = subtotal + domicilio, id = Utilities.getUuid();
   const voucherId = Utilities.getUuid();
   appendObject(ss.getSheetByName(HOJA_PEDIDOS), { id, fecha: new Date(), cliente: body.cliente, documento: String(body.documento).trim(), telefono: body.telefono, direccion: body.direccion, ciudad: body.ciudad, notas: body.notas || '', metodoPago: body.metodoPago, zonaDomicilio, envioGratis, domicilio, items: JSON.stringify(items), subtotal, total, voucherId, estado: 'Pendiente', validadoPor: '', validadoFecha: '', motivoRechazo: '' });
-  appendObject(ss.getSheetByName(HOJA_COMPROBANTES), { id: voucherId, pedidoId: id, fecha: new Date(), documento: String(body.documento).trim(), cliente: body.cliente, telefono: body.telefono, direccion: body.direccion, ciudad: body.ciudad, zonaDomicilio, envioGratis, domicilio, items: JSON.stringify(items), subtotal, total, metodoPago: body.metodoPago, estado: 'Pendiente' });
+  appendObject(ss.getSheetByName(HOJA_COMPROBANTES), { id: voucherId, pedidoId: id, fecha: new Date(), documento: String(body.documento).trim(), cliente: body.cliente, telefono: body.telefono, direccion: body.direccion, ciudad: body.ciudad, notas: body.notas || '', zonaDomicilio, envioGratis, domicilio, items: JSON.stringify(items), subtotal, total, metodoPago: body.metodoPago, estado: 'Pendiente', validadoPor: '', validadoFecha: '', motivoRechazo: '' });
   items.forEach(item => { for (let i = 1; i < datos.length; i++) if (datos[i][idCol] === item.productoId) { sh.getRange(i + 1, stockCol + 1).setValue(Math.max(0, Number(datos[i][stockCol]) - item.cantidad)); break; } });
   return respuesta({ ok: true, id, voucherId, subtotal, domicilio, total, zonaDomicilio, envioGratis });
 }
@@ -218,10 +218,10 @@ function validarPedido(ss, body, admin) {
   if (usuarioCol >= 0) sh.getRange(fila + 1, usuarioCol + 1).setValue(admin.usuario);
   if (fechaCol >= 0) sh.getRange(fila + 1, fechaCol + 1).setValue(new Date());
   if (motivoCol >= 0) sh.getRange(fila + 1, motivoCol + 1).setValue(body.aceptar === false ? String(body.motivo).trim() : errores.join('; '));
-  if (pedido.voucherId) actualizarEstadoComprobante(ss, pedido.voucherId, nuevoEstado);
+  if (pedido.voucherId) actualizarEstadoComprobante(ss, pedido.voucherId, nuevoEstado, admin, body.aceptar === false ? String(body.motivo).trim() : errores.join('; '));
   return respuesta({ ok: !errores.length, estado: nuevoEstado, errores });
 }
-function actualizarEstadoComprobante(ss, voucherId, estado) { const sh = ss.getSheetByName(HOJA_COMPROBANTES), datos = sh.getDataRange().getValues(), idCol = datos[0].indexOf('id'), estadoCol = datos[0].indexOf('estado'); for (let i = 1; i < datos.length; i++) if (datos[i][idCol] === voucherId) { sh.getRange(i + 1, estadoCol + 1).setValue(estado); return; } }
+function actualizarEstadoComprobante(ss, voucherId, estado, admin, motivo) { const sh = ss.getSheetByName(HOJA_COMPROBANTES), datos = sh.getDataRange().getValues(), headers = datos[0], idCol = headers.indexOf('id'), estadoCol = headers.indexOf('estado'); for (let i = 1; i < datos.length; i++) if (datos[i][idCol] === voucherId) { sh.getRange(i + 1, estadoCol + 1).setValue(estado); const usuarioCol = headers.indexOf('validadoPor'), fechaCol = headers.indexOf('validadoFecha'), motivoCol = headers.indexOf('motivoRechazo'); if (usuarioCol >= 0) sh.getRange(i + 1, usuarioCol + 1).setValue(admin.usuario); if (fechaCol >= 0) sh.getRange(i + 1, fechaCol + 1).setValue(new Date()); if (motivoCol >= 0) sh.getRange(i + 1, motivoCol + 1).setValue(motivo || ''); return; } }
 function actualizarPedido(ss, body) { const sh = ss.getSheetByName(HOJA_PEDIDOS), datos = sh.getDataRange().getValues(), estadoCol = datos[0].indexOf('estado'), idCol = datos[0].indexOf('id'); for (let i = 1; i < datos.length; i++) if (datos[i][idCol] === body.id) { if (String(datos[i][estadoCol]) === 'Pendiente') return respuesta({ error: 'Primero debes validar el pedido con Aceptar o Rechazar' }); sh.getRange(i + 1, estadoCol + 1).setValue(body.estado); return respuesta({ ok: true }); } return respuesta({ error: 'Pedido no encontrado' }); }
 
 function agregarAdministrador(ss, body, admin) {
@@ -235,10 +235,10 @@ function agregarAdministrador(ss, body, admin) {
 
 function dashboard(ss) {
   const pedidos = leerHoja(ss.getSheetByName(HOJA_PEDIDOS)), productos = leerHoja(ss.getSheetByName(HOJA_PRODUCTOS));
-  const pedidosValidos = pedidos.filter(p => String(p.estado) !== 'Rechazado'), ventas = pedidosValidos.reduce((s, p) => s + Number(p.total || 0), 0), pendientes = pedidos.filter(p => String(p.estado) === 'Pendiente').length;
+  const pedidosValidos = pedidos.filter(p => !['Pendiente','Rechazado'].includes(String(p.estado))), ventas = pedidosValidos.reduce((s, p) => s + Number(p.total || 0), 0), pendientes = pedidos.filter(p => String(p.estado) === 'Pendiente').length;
   const porDia = {}, porEstado = {}, top = {};
   pedidos.forEach(p => {
-    if (String(p.estado) === 'Rechazado') { porEstado[p.estado] = (porEstado[p.estado] || 0) + 1; return; }
+    if (['Pendiente','Rechazado'].includes(String(p.estado))) { porEstado[p.estado] = (porEstado[p.estado] || 0) + 1; return; }
     const d = new Date(p.fecha);
     if (!isNaN(d)) { const key = Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd'); porDia[key] = (porDia[key] || 0) + Number(p.total || 0); }
     const estado = p.estado || 'Pendiente'; porEstado[estado] = (porEstado[estado] || 0) + 1;
