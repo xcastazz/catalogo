@@ -62,7 +62,11 @@ function asegurarHoja(ss, nombre, headers) {
 
 function agregarProducto(ss, body) {
   let mediaUrl = '', mediaType = '';
-  if (body.media && body.media.data) {
+  if (body.mediaUrl) {
+    if (!/^https:\/\//i.test(String(body.mediaUrl))) throw new Error('La URL multimedia debe comenzar con https://');
+    mediaUrl = String(body.mediaUrl).trim();
+    mediaType = String(body.mediaType || 'image/*');
+  } else if (body.media && body.media.data) {
     const bytes = Utilities.base64Decode(body.media.data);
     const file = DriveApp.createFile(Utilities.newBlob(bytes, body.media.mimeType, body.media.name || 'producto'));
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
