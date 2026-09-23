@@ -4,14 +4,16 @@ const ADMIN_INICIAL_PASSWORD = 'jeronimo1192_';
 const HOJA_PRODUCTOS = 'Productos';
 const HOJA_PEDIDOS = 'Pedidos';
 const HOJA_ADMINS = 'Administradores';
+const HOJA_CATEGORIAS = 'Categorias';
 const CACHE_SESION_SEGUNDOS = 21600;
+const DOMICILIOS = { medellin: 5000, metropolitana: 15000, nacional: 0 };
 
 function doGet(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   asegurarHojas(ss);
   const telefono = e.parameter && e.parameter.telefono;
   if (telefono) return respuesta({ pedidos: leerHoja(ss.getSheetByName(HOJA_PEDIDOS)).filter(p => soloDigitos(p.telefono) === soloDigitos(telefono)).map(p => ({ ...p, items: undefined })) });
-  return respuesta({ productos: leerHoja(ss.getSheetByName(HOJA_PRODUCTOS)) });
+  return respuesta({ productos: leerHoja(ss.getSheetByName(HOJA_PRODUCTOS)), categorias: leerHoja(ss.getSheetByName(HOJA_CATEGORIAS)).map(c => c.nombre) });
 }
 
 function doPost(e) {
@@ -23,13 +25,15 @@ function doPost(e) {
   const admin = autenticar(body.token);
   if (!admin) return respuesta({ error: 'Sesión expirada' });
   if (body.accion === 'dashboard') return dashboard(ss);
-  if (body.accion === 'listarProductos') return respuesta({ productos: leerHoja(ss.getSheetByName(HOJA_PRODUCTOS)) });
-  if (body.accion === 'listarAdministradores') return respuesta({ administradores: leerHoja(ss.getSheetByName(HOJA_ADMINS)).map(a => ({ usuario: a.usuario, nombre: a.nombre, rol: a.rol, activo: a.activo })) });
-  if (body.accion === 'agregarAdministrador') return agregarAdministrador(ss, body, admin);
-  if (body.accion === 'agregarProducto') return agregarProducto(ss, body);
-  if (body.accion === 'eliminarProducto') { eliminarPorId(ss.getSheetByName(HOJA_PRODUCTOS), body.id); return respuesta({ ok: true }); }
-  if (body.accion === 'actualizarPedido') return actualizarPedido(ss, body);
-  if (body.accion === 'limpiarVentas') return limpiarVentas(ss, admin);
+  if (body.accion === 'listarProductos') return soloPropietario(admin, () => respuesta({ productos: leerHoja(ss.getSheetByName(HOJA_PRODUCTOS)) }));
+  if (body.accion === 'listarAdministradores') return soloPropietario(admin, () => respuesta({ administradores: leerHoja(ss.getSheetByName(HOJA_ADMINS)).map(a => ({ usuario: a.usuario, nombre: a.nombre, rol: a.rol, activo: a.activo })) }));
+  if (body.accion === 'listarCategorias') return respuesta({ categorias: leerHoja(ss.getSheetByName(HOJA_CATEGORIAS)).map(c => ({ id: c.id, nombre: c.nombre })) });
+  if (body.accion === 'agregarAdministrador') return soloPropietario(admin, () => agregarAdministrador(ss, body, admin));
+  if (body.accion === 'agregarCategoria') return soloPropietario(admin, () => agregarCategoria(ss, body));
+  if (body.accion === 'eliminarCategoria') return soloPropietario(admin, () => { eliminarPorId(ss.getSheetByName(HOJA_CATEGORIAS), body.id); return respuesta({ ok: true }); });
+  if (body.accion === 'agregarProducto') return soloPropietario(admin, () => agregarProducto(ss, body));
+  if (body.accion === 'eliminarProducto') return soloPropietario(admin, () => { eliminarPorId(ss.getSheetByName(HOJA_PRODUCTOS), body.id); return respuesta({ ok: true }); });
+  if (body.accion === 'limpiarVentas') return soloPropietario(admin, () => limpiarVentas(ss, admin));
   return respuesta({ error: 'Acción no reconocida' });
 }
 
@@ -39,17 +43,20 @@ function login(ss, body) {
   if (!encontrado || hash(body.password || '') !== encontrado.passwordHash) return respuesta({ error: 'Usuario o contraseña incorrectos' });
   const token = Utilities.getUuid() + Utilities.getUuid();
   CacheService.getScriptCache().put('sesion_' + token, JSON.stringify({ usuario: encontrado.usuario, rol: encontrado.rol }), CACHE_SESION_SEGUNDOS);
-  return respuesta({ ok: true, token, usuario: encontrado.usuario, expiraEn: CACHE_SESION_SEGUNDOS });
+  return respuesta({ ok: true, token, usuario: encontrado.usuario, rol: encontrado.rol, expiraEn: CACHE_SESION_SEGUNDOS });
 }
 
 function autenticar(token) { if (!token) return null; const raw = CacheService.getScriptCache().get('sesion_' + token); return raw ? JSON.parse(raw) : null; }
 
 function asegurarHojas(ss) {
   asegurarHoja(ss, HOJA_PRODUCTOS, ['id','nombre','categoria','precio','stock','descripcion','mediaUrl','mediaType']);
-  asegurarHoja(ss, HOJA_PEDIDOS, ['id','fecha','cliente','telefono','direccion','ciudad','notas','metodoPago','items','total','estado']);
+  asegurarHoja(ss, HOJA_PEDIDOS, ['id','fecha','cliente','telefono','direccion','ciudad','notas','metodoPago','zonaDomicilio','domicilio','items','subtotal','total','estado']);
   const sh = asegurarHoja(ss, HOJA_ADMINS, ['usuario','passwordHash','nombre','rol','activo','creado']);
+  asegurarHoja(ss, HOJA_CATEGORIAS, ['id','nombre']);
   if (sh.getLastRow() < 2) sh.appendRow([ADMIN_INICIAL_USUARIO, hash(ADMIN_INICIAL_PASSWORD), 'Propietario', 'propietario', true, new Date()]);
 }
+
+function soloPropietario(admin, accion) { return admin.rol === 'propietario' ? accion() : respuesta({ error: 'Esta opción solo está disponible para el propietario' }); }
 
 function asegurarHoja(ss, nombre, headers) {
   let sh = ss.getSheetByName(nombre);
@@ -77,6 +84,15 @@ function agregarProducto(ss, body) {
   return respuesta({ ok: true });
 }
 
+function agregarCategoria(ss, body) {
+  const nombre = String(body.nombre || '').trim();
+  if (!nombre || nombre.length > 40) return respuesta({ error: 'La categoría debe tener entre 1 y 40 caracteres' });
+  const sh = ss.getSheetByName(HOJA_CATEGORIAS);
+  if (leerHoja(sh).some(c => String(c.nombre).toLowerCase() === nombre.toLowerCase())) return respuesta({ error: 'Esa categoría ya existe' });
+  appendObject(sh, { id: Utilities.getUuid(), nombre });
+  return respuesta({ ok: true });
+}
+
 function limpiarVentas(ss, admin) {
   if (admin.rol !== 'propietario') return respuesta({ error: 'Solo el propietario puede limpiar las ventas' });
   const sh = ss.getSheetByName(HOJA_PEDIDOS);
@@ -94,10 +110,10 @@ function crearPedido(ss, body) {
     if (cantidad > Number(fila[stockCol])) throw new Error('Stock insuficiente para ' + fila[nombreCol]);
     return { productoId: fila[idCol], producto: fila[nombreCol], cantidad, precioUnitario: Number(fila[precioCol]) };
   });
-  const total = items.reduce((s, it) => s + it.precioUnitario * it.cantidad, 0), id = Utilities.getUuid();
-  appendObject(ss.getSheetByName(HOJA_PEDIDOS), { id, fecha: new Date(), cliente: body.cliente, telefono: body.telefono, direccion: body.direccion, ciudad: body.ciudad, notas: body.notas || '', metodoPago: body.metodoPago, items: JSON.stringify(items), total, estado: 'Pendiente' });
+  const subtotal = items.reduce((s, it) => s + it.precioUnitario * it.cantidad, 0), zonaDomicilio = String(body.zonaDomicilio || 'nacional'), domicilio = DOMICILIOS[zonaDomicilio] === undefined ? 0 : DOMICILIOS[zonaDomicilio], total = subtotal + domicilio, id = Utilities.getUuid();
+  appendObject(ss.getSheetByName(HOJA_PEDIDOS), { id, fecha: new Date(), cliente: body.cliente, telefono: body.telefono, direccion: body.direccion, ciudad: body.ciudad, notas: body.notas || '', metodoPago: body.metodoPago, zonaDomicilio, domicilio, items: JSON.stringify(items), subtotal, total, estado: 'Pendiente' });
   items.forEach(item => { for (let i = 1; i < datos.length; i++) if (datos[i][idCol] === item.productoId) { sh.getRange(i + 1, stockCol + 1).setValue(Math.max(0, Number(datos[i][stockCol]) - item.cantidad)); break; } });
-  return respuesta({ ok: true, id, total });
+  return respuesta({ ok: true, id, subtotal, domicilio, total, zonaDomicilio });
 }
 
 function actualizarPedido(ss, body) { const sh = ss.getSheetByName(HOJA_PEDIDOS), datos = sh.getDataRange().getValues(), estadoCol = datos[0].indexOf('estado'), idCol = datos[0].indexOf('id'); for (let i = 1; i < datos.length; i++) if (datos[i][idCol] === body.id) sh.getRange(i + 1, estadoCol + 1).setValue(body.estado); return respuesta({ ok: true }); }
