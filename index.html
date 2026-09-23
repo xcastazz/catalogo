@@ -75,7 +75,7 @@ body{background:radial-gradient(ellipse at 15% 5%,rgba(36,217,255,.22),transpare
 body:before,body:after{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none;background:conic-gradient(from 120deg at 30% 40%,transparent 0 28%,rgba(36,217,255,.07) 34%,transparent 43% 68%,rgba(98,141,255,.06) 75%,transparent 84%);filter:blur(35px);animation:aurora 18s ease-in-out infinite alternate}
 body:after{animation-delay:-9s;transform:rotate(180deg);opacity:.7}@keyframes aurora{from{transform:translate3d(-3%,1%,0) rotate(0deg) scale(1)}to{transform:translate3d(4%,-2%,0) rotate(18deg) scale(1.08)}}
 .more-products{margin-top:8px;color:var(--accent);background:transparent}
-.store-tools{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px}.store-tools input{flex:1;min-width:220px}.tag-filters{display:flex;gap:6px;flex-wrap:wrap}.tag-filters button.active{background:var(--accent);color:var(--accent-text)}.product-tags{display:flex;gap:5px;flex-wrap:wrap}.product-tag{font-size:.68rem;color:var(--accent2);border:1px solid var(--border);border-radius:999px;padding:2px 7px}
+.store-tools{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px}.store-tools input{flex:1;min-width:220px}
 </style>
 </head>
 <body>
@@ -96,9 +96,8 @@ body:after{animation-delay:-9s;transform:rotate(180deg);opacity:.7}@keyframes au
 </header>
 
 <main>
-  <div class="store-tools"><input id="productSearch" type="search" placeholder="Buscar productos..."><div id="tagFilters" class="tag-filters"></div></div>
+  <div class="store-tools"><input id="productSearch" type="search" placeholder="Buscar productos..."></div>
   <div class="catalog-layout"><nav id="categoryBar" class="categorybar" aria-label="Categorías"></nav><div id="catalog"></div></div>
-  <section class="about" id="sobreNosotros"><h2>Sobre MAEVO</h2><p>Conectamos tecnologia, estilo y servicio para que comprar sea sencillo, claro y confiable. Seleccionamos productos con informacion transparente, acompanamos cada pedido y mantenemos una comunicacion directa con nuestros clientes.</p><div class="trustline"><span>Compra acompanada</span><span>Precios claros</span><span>Atencion directa</span></div></section>
 
 </main>
 
@@ -205,10 +204,8 @@ const WHATSAPP_NEGOCIO = '+573116390334';
 
 let PRODUCTOS = [];
 let CATEGORIAS = [];
-let ETIQUETAS = [];
 let categoriaActiva = 'Todas';
 let categoriaExpandida = null;
-let etiquetaActiva = 'Todas';
 let CARRITO = JSON.parse(localStorage.getItem('maevo_carrito') || '[]');
 let ultimoPedido = null;
 
@@ -221,7 +218,6 @@ async function cargarProductos(){
     const data = await res.json();
     PRODUCTOS = data.productos || [];
     CATEGORIAS = data.categorias || [...new Set(PRODUCTOS.map(p => p.categoria).filter(Boolean))];
-    ETIQUETAS = data.etiquetas || [];
   }catch(err){
     toast('No se pudo conectar con la hoja. Revisa API_URL.');
     PRODUCTOS = [];
@@ -231,7 +227,6 @@ async function cargarProductos(){
 
 function render(){
   renderCategories();
-  renderTagFilters();
   renderCatalog();
   renderCartBadge();
 }
@@ -241,7 +236,7 @@ function renderCatalog(){
   const termino = document.getElementById('productSearch')?.value.trim().toLowerCase() || '';
   const categorias = categoriaActiva === 'Todas' ? ['Todas', ...CATEGORIAS] : [categoriaActiva];
   const filas = categorias.map(categoria => {
-    const productos = (categoria === 'Todas' ? PRODUCTOS : PRODUCTOS.filter(p => String(p.categoria || '').trim().toLowerCase() === String(categoria).trim().toLowerCase())).filter(p => { const texto=[p.nombre,p.descripcion,p.categoria].join(' ').toLowerCase(); let tags=[]; try{tags=JSON.parse(p.etiquetas||'[]')}catch(e){} return (!termino||texto.includes(termino)) && (etiquetaActiva==='Todas'||tags.includes(etiquetaActiva)); });
+    const productos = (categoria === 'Todas' ? PRODUCTOS : PRODUCTOS.filter(p => String(p.categoria || '').trim().toLowerCase() === String(categoria).trim().toLowerCase())).filter(p => { const texto=[p.nombre,p.descripcion,p.categoria].join(' ').toLowerCase(); return !termino||texto.includes(termino); });
     if (!productos.length) return '';
     const visible = categoriaExpandida === categoria ? productos : productos.slice(0, 4);
     return `<section class="recommendation"><h2>${categoria === 'Todas' ? 'Recomendados para ti' : esc(categoria)}</h2><div class="recommendation-track">${visible.map(p => tarjetaProducto(p)).join('')}</div>${productos.length > 4 ? `<button class="more-products" onclick="mostrarCategoriaCompleta('${esc(categoria)}')">Ver más productos (${productos.length - 4})</button>` : ''}</section>`;
@@ -267,9 +262,7 @@ function renderCategories(){
   const el=document.getElementById('categoryBar');
   el.innerHTML=['Todas',...CATEGORIAS].map(c=>`<button class="${c===categoriaActiva?'active':''}" onclick="filtrarCategoria('${esc(c)}')">${esc(c)}</button>`).join('');
 }
-function renderTagFilters(){const el=document.getElementById('tagFilters');el.innerHTML=['Todas',...ETIQUETAS.map(e=>typeof e==='string'?e:e.nombre)].map(tag=>`<button class="${tag===etiquetaActiva?'active':''}" onclick="filtrarEtiqueta('${esc(tag)}')">${esc(tag)}</button>`).join('')}
 function filtrarCategoria(categoria){categoriaActiva=categoria;render()}
-function filtrarEtiqueta(etiqueta){etiquetaActiva=etiqueta;render()}
 function mostrarCategoriaCompleta(categoria){categoriaExpandida=categoria;renderCatalog();document.getElementById('catalog').scrollIntoView({behavior:'smooth',block:'start'})}
 function verProducto(id){
   const p=PRODUCTOS.find(x=>x.id===id);if(!p)return;
