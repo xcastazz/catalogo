@@ -57,6 +57,7 @@ function doPost(e) {
   if (body.accion === 'agregarProducto') return agregarProducto(ss, body, admin);
   if (body.accion === 'actualizarProducto') return actualizarProducto(ss, body);
   if (body.accion === 'eliminarProducto') { eliminarPorId(ss.getSheetByName(HOJA_PRODUCTOS), body.id); return respuesta({ ok: true }); }
+  if (body.accion === 'validarPedido') return validarPedido(ss, body, admin);
   if (body.accion === 'actualizarPedido') return actualizarPedido(ss, body);
   if (body.accion === 'eliminarComprobante') return soloPropietario(admin, () => { eliminarPorId(ss.getSheetByName(HOJA_COMPROBANTES), body.id); return respuesta({ ok: true }); });
   if (body.accion === 'limpiarVentas') return soloPropietario(admin, () => limpiarVentas(ss, admin));
@@ -76,7 +77,7 @@ function autenticar(token) { if (!token) return null; const raw = CacheService.g
 
 function asegurarHojas(ss) {
   asegurarHoja(ss, HOJA_PRODUCTOS, ['id','nombre','categoria','precio','stock','descripcion','mediaUrl','mediaUrls','mediaType','etiquetas']);
-  asegurarHoja(ss, HOJA_PEDIDOS, ['id','fecha','cliente','documento','telefono','direccion','ciudad','notas','metodoPago','zonaDomicilio','envioGratis','domicilio','items','subtotal','total','voucherId','estado']);
+  asegurarHoja(ss, HOJA_PEDIDOS, ['id','fecha','cliente','documento','telefono','direccion','ciudad','notas','metodoPago','zonaDomicilio','envioGratis','domicilio','items','subtotal','total','voucherId','estado','validadoPor','validadoFecha','motivoRechazo']);
   const sh = asegurarHoja(ss, HOJA_ADMINS, ['usuario','passwordHash','nombre','rol','activo','creado']);
   asegurarHoja(ss, HOJA_CATEGORIAS, ['id','nombre']);
   asegurarHoja(ss, HOJA_ETIQUETAS, ['id','nombre']);
@@ -157,7 +158,7 @@ function crearPedido(ss, body) {
   });
   const subtotal = items.reduce((s, it) => s + it.precioUnitario * it.cantidad, 0), zonaDomicilio = String(body.zonaDomicilio || 'nacional'), envioGratis = String(body.envioGratis) === 'true', domicilioBase = DOMICILIOS[zonaDomicilio] === undefined ? 0 : DOMICILIOS[zonaDomicilio], domicilio = envioGratis ? 0 : domicilioBase, total = subtotal + domicilio, id = Utilities.getUuid();
   const voucherId = Utilities.getUuid();
-  appendObject(ss.getSheetByName(HOJA_PEDIDOS), { id, fecha: new Date(), cliente: body.cliente, documento: String(body.documento).trim(), telefono: body.telefono, direccion: body.direccion, ciudad: body.ciudad, notas: body.notas || '', metodoPago: body.metodoPago, zonaDomicilio, envioGratis, domicilio, items: JSON.stringify(items), subtotal, total, voucherId, estado: 'Pendiente' });
+  appendObject(ss.getSheetByName(HOJA_PEDIDOS), { id, fecha: new Date(), cliente: body.cliente, documento: String(body.documento).trim(), telefono: body.telefono, direccion: body.direccion, ciudad: body.ciudad, notas: body.notas || '', metodoPago: body.metodoPago, zonaDomicilio, envioGratis, domicilio, items: JSON.stringify(items), subtotal, total, voucherId, estado: 'Pendiente', validadoPor: '', validadoFecha: '', motivoRechazo: '' });
   appendObject(ss.getSheetByName(HOJA_COMPROBANTES), { id: voucherId, pedidoId: id, fecha: new Date(), documento: String(body.documento).trim(), cliente: body.cliente, telefono: body.telefono, direccion: body.direccion, ciudad: body.ciudad, zonaDomicilio, envioGratis, domicilio, items: JSON.stringify(items), subtotal, total, metodoPago: body.metodoPago, estado: 'Pendiente' });
   items.forEach(item => { for (let i = 1; i < datos.length; i++) if (datos[i][idCol] === item.productoId) { sh.getRange(i + 1, stockCol + 1).setValue(Math.max(0, Number(datos[i][stockCol]) - item.cantidad)); break; } });
   return respuesta({ ok: true, id, voucherId, subtotal, domicilio, total, zonaDomicilio, envioGratis });
@@ -196,7 +197,32 @@ function enviarWhatsApp(ss, body) {
   } catch (err) { return respuesta({ error: err.message || 'No se pudo enviar el mensaje' }); }
 }
 
-function actualizarPedido(ss, body) { const sh = ss.getSheetByName(HOJA_PEDIDOS), datos = sh.getDataRange().getValues(), estadoCol = datos[0].indexOf('estado'), idCol = datos[0].indexOf('id'); for (let i = 1; i < datos.length; i++) if (datos[i][idCol] === body.id) sh.getRange(i + 1, estadoCol + 1).setValue(body.estado); return respuesta({ ok: true }); }
+function validarPedido(ss, body, admin) {
+  const sh = ss.getSheetByName(HOJA_PEDIDOS), datos = sh.getDataRange().getValues(), headers = datos[0], idCol = headers.indexOf('id'), fila = datos.findIndex((row, index) => index > 0 && row[idCol] === body.id);
+  if (fila < 1) return respuesta({ error: 'Pedido no encontrado' });
+  const pedido = {}; headers.forEach((header, index) => pedido[header] = datos[fila][index]);
+  if (String(pedido.estado) !== 'Pendiente') return respuesta({ error: 'Este pedido ya fue revisado' });
+  let items = [];
+  try { items = JSON.parse(pedido.items || '[]'); } catch (err) {}
+  const errores = [];
+  if (!String(pedido.cliente || '').trim()) errores.push('falta el nombre del cliente');
+  if (!soloDigitos(pedido.documento)) errores.push('falta el documento');
+  if (soloDigitos(pedido.telefono).length < 7) errores.push('el teléfono no es válido');
+  if (!String(pedido.direccion || '').trim() || !String(pedido.ciudad || '').trim()) errores.push('falta la dirección o la ciudad');
+  if (!items.length) errores.push('el pedido no tiene productos');
+  const subtotal = items.reduce((total, item) => total + Number(item.precioUnitario || 0) * Number(item.cantidad || 0), 0), domicilio = String(pedido.envioGratis) === 'true' ? 0 : Number(pedido.domicilio || 0), total = subtotal + domicilio;
+  if (Number(pedido.subtotal) !== subtotal || Number(pedido.total) !== total) errores.push('el total no coincide con sus productos');
+  if (body.aceptar === false && !String(body.motivo || '').trim()) return respuesta({ error: 'El rechazo requiere un motivo' });
+  const nuevoEstado = body.aceptar === false ? 'Rechazado' : errores.length ? 'Rechazado' : 'Aceptado', estadoCol = headers.indexOf('estado'), usuarioCol = headers.indexOf('validadoPor'), fechaCol = headers.indexOf('validadoFecha'), motivoCol = headers.indexOf('motivoRechazo');
+  sh.getRange(fila + 1, estadoCol + 1).setValue(nuevoEstado);
+  if (usuarioCol >= 0) sh.getRange(fila + 1, usuarioCol + 1).setValue(admin.usuario);
+  if (fechaCol >= 0) sh.getRange(fila + 1, fechaCol + 1).setValue(new Date());
+  if (motivoCol >= 0) sh.getRange(fila + 1, motivoCol + 1).setValue(body.aceptar === false ? String(body.motivo).trim() : errores.join('; '));
+  if (pedido.voucherId) actualizarEstadoComprobante(ss, pedido.voucherId, nuevoEstado);
+  return respuesta({ ok: !errores.length, estado: nuevoEstado, errores });
+}
+function actualizarEstadoComprobante(ss, voucherId, estado) { const sh = ss.getSheetByName(HOJA_COMPROBANTES), datos = sh.getDataRange().getValues(), idCol = datos[0].indexOf('id'), estadoCol = datos[0].indexOf('estado'); for (let i = 1; i < datos.length; i++) if (datos[i][idCol] === voucherId) { sh.getRange(i + 1, estadoCol + 1).setValue(estado); return; } }
+function actualizarPedido(ss, body) { const sh = ss.getSheetByName(HOJA_PEDIDOS), datos = sh.getDataRange().getValues(), estadoCol = datos[0].indexOf('estado'), idCol = datos[0].indexOf('id'); for (let i = 1; i < datos.length; i++) if (datos[i][idCol] === body.id) { if (String(datos[i][estadoCol]) === 'Pendiente') return respuesta({ error: 'Primero debes validar el pedido con Aceptar o Rechazar' }); sh.getRange(i + 1, estadoCol + 1).setValue(body.estado); return respuesta({ ok: true }); } return respuesta({ error: 'Pedido no encontrado' }); }
 
 function agregarAdministrador(ss, body, admin) {
   if (admin.rol !== 'propietario') return respuesta({ error: 'Solo el propietario puede agregar administradores' });
@@ -209,9 +235,10 @@ function agregarAdministrador(ss, body, admin) {
 
 function dashboard(ss) {
   const pedidos = leerHoja(ss.getSheetByName(HOJA_PEDIDOS)), productos = leerHoja(ss.getSheetByName(HOJA_PRODUCTOS));
-  const ventas = pedidos.reduce((s, p) => s + Number(p.total || 0), 0), pendientes = pedidos.filter(p => String(p.estado) === 'Pendiente').length;
+  const pedidosValidos = pedidos.filter(p => String(p.estado) !== 'Rechazado'), ventas = pedidosValidos.reduce((s, p) => s + Number(p.total || 0), 0), pendientes = pedidos.filter(p => String(p.estado) === 'Pendiente').length;
   const porDia = {}, porEstado = {}, top = {};
   pedidos.forEach(p => {
+    if (String(p.estado) === 'Rechazado') { porEstado[p.estado] = (porEstado[p.estado] || 0) + 1; return; }
     const d = new Date(p.fecha);
     if (!isNaN(d)) { const key = Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd'); porDia[key] = (porDia[key] || 0) + Number(p.total || 0); }
     const estado = p.estado || 'Pendiente'; porEstado[estado] = (porEstado[estado] || 0) + 1;
@@ -219,7 +246,7 @@ function dashboard(ss) {
   });
   const dias = [];
   for (let i = 29; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); const key = Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd'); dias.push({ fecha: key, total: porDia[key] || 0 }); }
-  return respuesta({ resumen: { ventas, pedidos: pedidos.length, pendientes, ticketPromedio: pedidos.length ? ventas / pedidos.length : 0, productos: productos.length, stock: productos.reduce((s, p) => s + Number(p.stock || 0), 0) }, ventasPorDia: dias, pedidosPorEstado: Object.keys(porEstado).map(estado => ({ estado, cantidad: porEstado[estado] })), productosTop: Object.keys(top).map(producto => ({ producto, ...top[producto] })).sort((a, b) => b.total - a.total).slice(0, 8), recientes: pedidos.slice(-8).reverse(), pedidos });
+  return respuesta({ resumen: { ventas, pedidos: pedidos.length, pendientes, ticketPromedio: pedidosValidos.length ? ventas / pedidosValidos.length : 0, productos: productos.length, stock: productos.reduce((s, p) => s + Number(p.stock || 0), 0) }, ventasPorDia: dias, pedidosPorEstado: Object.keys(porEstado).map(estado => ({ estado, cantidad: porEstado[estado] })), productosTop: Object.keys(top).map(producto => ({ producto, ...top[producto] })).sort((a, b) => b.total - a.total).slice(0, 8), recientes: pedidos.slice(-8).reverse(), pedidos });
 }
 
 function appendObject(sh, obj) { const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]; sh.appendRow(headers.map(h => obj[h] === undefined ? '' : obj[h])); }

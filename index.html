@@ -466,7 +466,7 @@ async function buscarMisPedidos(){
 }
 
 function trackingMarkup(estado){
-  const estados=['Pendiente','Pagado','Enviado','En reparto','Entregado'];
+  const estados=['Pendiente','Aceptado','Pagado','Enviado','En reparto','Entregado'];
   const actual=estado==='Cancelado'?'Cancelado':estado||'Pendiente';
   const indice=estados.indexOf(actual);
   if(actual==='Cancelado')return '<div class="tracking"><div class="tracking-step active"><i></i>Pedido cancelado</div></div>';
