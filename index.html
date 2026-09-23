@@ -70,6 +70,12 @@
   body{animation:pageIn .55s ease-out}button,.iconbtn{transition:transform .2s,box-shadow .2s,border-color .2s}button:hover,.iconbtn:hover{transform:translateY(-2px);box-shadow:0 0 18px rgba(36,217,255,.16)}dialog[open]{animation:dialogIn .25s ease-out}header{animation:headerIn .5s ease-out}@keyframes pageIn{from{opacity:0}to{opacity:1}}@keyframes dialogIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes headerIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}@media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 <style>.media-gallery{display:flex;gap:6px;overflow-x:auto}.media-gallery .media{min-width:100%;flex:0 0 100%}</style>
+<style>
+body{background:radial-gradient(ellipse at 15% 5%,rgba(36,217,255,.22),transparent 30%),radial-gradient(ellipse at 85% 18%,rgba(98,141,255,.2),transparent 34%),linear-gradient(125deg,#020817 0%,#06132d 48%,#03091b 100%);background-attachment:fixed;position:relative;isolation:isolate}
+body:before,body:after{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none;background:conic-gradient(from 120deg at 30% 40%,transparent 0 28%,rgba(36,217,255,.07) 34%,transparent 43% 68%,rgba(98,141,255,.06) 75%,transparent 84%);filter:blur(35px);animation:aurora 18s ease-in-out infinite alternate}
+body:after{animation-delay:-9s;transform:rotate(180deg);opacity:.7}@keyframes aurora{from{transform:translate3d(-3%,1%,0) rotate(0deg) scale(1)}to{transform:translate3d(4%,-2%,0) rotate(18deg) scale(1.08)}}
+.more-products{margin-top:8px;color:var(--accent);background:transparent}
+</style>
 </head>
 <body>
 
@@ -197,6 +203,7 @@ const WHATSAPP_NEGOCIO = '+573116390334';
 let PRODUCTOS = [];
 let CATEGORIAS = [];
 let categoriaActiva = 'Todas';
+let categoriaExpandida = null;
 let CARRITO = JSON.parse(localStorage.getItem('maevo_carrito') || '[]');
 let ultimoPedido = null;
 
@@ -228,7 +235,8 @@ function renderCatalog(){
   const filas = categorias.map(categoria => {
     const productos = categoria === 'Todas' ? PRODUCTOS : PRODUCTOS.filter(p => String(p.categoria || '').trim().toLowerCase() === String(categoria).trim().toLowerCase());
     if (!productos.length) return '';
-    return `<section class="recommendation"><h2>${categoria === 'Todas' ? 'Recomendados para ti' : esc(categoria)}</h2><div class="recommendation-track">${productos.map(p => tarjetaProducto(p)).join('')}</div></section>`;
+    const visible = categoriaExpandida === categoria ? productos : productos.slice(0, 4);
+    return `<section class="recommendation"><h2>${categoria === 'Todas' ? 'Recomendados para ti' : esc(categoria)}</h2><div class="recommendation-track">${visible.map(p => tarjetaProducto(p)).join('')}</div>${productos.length > 4 ? `<button class="more-products" onclick="mostrarCategoriaCompleta('${esc(categoria)}')">Ver más productos (${productos.length - 4})</button>` : ''}</section>`;
   }).join('');
   el.innerHTML = filas || '<div class="empty">Todavía no hay productos en esta categoría.</div>';
 }
@@ -251,6 +259,7 @@ function renderCategories(){
   el.innerHTML=['Todas',...CATEGORIAS].map(c=>`<button class="${c===categoriaActiva?'active':''}" onclick="filtrarCategoria('${esc(c)}')">${esc(c)}</button>`).join('');
 }
 function filtrarCategoria(categoria){categoriaActiva=categoria;render()}
+function mostrarCategoriaCompleta(categoria){categoriaExpandida=categoria;renderCatalog();document.getElementById('catalog').scrollIntoView({behavior:'smooth',block:'start'})}
 function verProducto(id){
   const p=PRODUCTOS.find(x=>x.id===id);if(!p)return;
   const media=renderMedia(p);
@@ -392,7 +401,7 @@ function mostrarFactura(pedido){
     <table>${pedido.items.map(i=>`<tr><td>${i.cantidad} x ${esc(i.producto)}</td><td style="text-align:right">${cop(i.precioUnitario*i.cantidad)}</td></tr>`).join('')}</table>
     <div class="cartrow"><span>Subtotal</span><span>${cop(pedido.subtotal)}</span></div><div class="cartrow"><span>Domicilio</span><span class="${pedido.envioGratis?'free-shipping':''}">${pedido.envioGratis ? 'GRATIS' : (pedido.domicilio ? cop(pedido.domicilio) : 'Por confirmar')}</span></div><div class="totalline"><span>Total</span><span>${cop(pedido.total)}</span></div>
     <div class="instructions">
-      📸 Toma una captura de pantalla de este comprobante y envíala al WhatsApp <strong>${WHATSAPP_NEGOCIO.slice(2)}</strong> para continuar con tu pago por <strong>${esc(pedido.metodoPago)}</strong> a ${esc(cuenta)}.
+      📸 Toma una captura de pantalla de este comprobante y envíala al WhatsApp <strong>3116390334</strong> para continuar con tu pago por <strong>${esc(pedido.metodoPago)}</strong> a ${esc(cuenta)}.
     </div>
   `;
   openDialog('dlgFactura');
