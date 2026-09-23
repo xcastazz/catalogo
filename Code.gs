@@ -28,7 +28,7 @@ function doPost(e) {
   if (!admin) return respuesta({ error: 'Sesión expirada' });
   if (body.accion === 'dashboard') return soloPropietario(admin, () => dashboard(ss));
   if (body.accion === 'listarPedidos') return respuesta({ pedidos: leerHoja(ss.getSheetByName(HOJA_PEDIDOS)) });
-  if (body.accion === 'listarComprobantes') return soloPropietario(admin, () => respuesta({ comprobantes: leerHoja(ss.getSheetByName(HOJA_COMPROBANTES)) }));
+  if (body.accion === 'listarComprobantes') return respuesta({ comprobantes: leerHoja(ss.getSheetByName(HOJA_COMPROBANTES)) });
   if (body.accion === 'listarProductos') return respuesta({ productos: leerHoja(ss.getSheetByName(HOJA_PRODUCTOS)) });
   if (body.accion === 'listarAdministradores') return soloPropietario(admin, () => respuesta({ administradores: leerHoja(ss.getSheetByName(HOJA_ADMINS)).map(a => ({ usuario: a.usuario, nombre: a.nombre, rol: a.rol, activo: a.activo })) }));
   if (body.accion === 'listarCategorias') return respuesta({ categorias: leerHoja(ss.getSheetByName(HOJA_CATEGORIAS)).map(c => ({ id: c.id, nombre: c.nombre })) });
