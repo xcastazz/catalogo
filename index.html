@@ -236,7 +236,6 @@ function tarjetaProducto(p){ return `
       <button class="primary" ${p.stock>0?'':'disabled'} onclick="event.stopPropagation();agregarAlCarrito('${p.id}')">Agregar al carrito</button>
     </div>
   `; }
-}
 
 function renderCategories(){
   const el=document.getElementById('categoryBar');
