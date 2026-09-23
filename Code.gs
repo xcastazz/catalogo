@@ -25,6 +25,7 @@ function doPost(e) {
   const admin = autenticar(body.token);
   if (!admin) return respuesta({ error: 'Sesión expirada' });
   if (body.accion === 'dashboard') return soloPropietario(admin, () => dashboard(ss));
+  if (body.accion === 'listarPedidos') return respuesta({ pedidos: leerHoja(ss.getSheetByName(HOJA_PEDIDOS)) });
   if (body.accion === 'listarProductos') return respuesta({ productos: leerHoja(ss.getSheetByName(HOJA_PRODUCTOS)) });
   if (body.accion === 'listarAdministradores') return soloPropietario(admin, () => respuesta({ administradores: leerHoja(ss.getSheetByName(HOJA_ADMINS)).map(a => ({ usuario: a.usuario, nombre: a.nombre, rol: a.rol, activo: a.activo })) }));
   if (body.accion === 'listarCategorias') return respuesta({ categorias: leerHoja(ss.getSheetByName(HOJA_CATEGORIAS)).map(c => ({ id: c.id, nombre: c.nombre })) });
@@ -34,7 +35,7 @@ function doPost(e) {
   if (body.accion === 'agregarProducto') return agregarProducto(ss, body, admin);
   if (body.accion === 'actualizarProducto') return actualizarProducto(ss, body);
   if (body.accion === 'eliminarProducto') { eliminarPorId(ss.getSheetByName(HOJA_PRODUCTOS), body.id); return respuesta({ ok: true }); }
-  if (body.accion === 'actualizarPedido') return soloPropietario(admin, () => actualizarPedido(ss, body));
+  if (body.accion === 'actualizarPedido') return actualizarPedido(ss, body);
   if (body.accion === 'limpiarVentas') return soloPropietario(admin, () => limpiarVentas(ss, admin));
   return respuesta({ error: 'Acción no reconocida' });
 }
